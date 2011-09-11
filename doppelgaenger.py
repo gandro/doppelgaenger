@@ -6,6 +6,7 @@ import multiprocessing
 import heapq
 import sys
 import time # todo
+import fnmatch
 
 """
     TODO:
@@ -31,6 +32,14 @@ class Tree:
         if not dbfile:
             dbfile = os.path.join(rootpath, '.doppelgaenger.db')
         self.dbfile = dbfile
+        try:
+            dgignore = open(os.path.join(rootpath, '.dgignore'), "rb")
+        except IOError:
+            self.blacklist = []
+        else:
+            with dgignore:
+                self.blacklist = [line.strip() for line in dgignore.readlines()]
+        self.blacklist.append(os.path.relpath(dbfile.encode(), self.rootpath))
 
     def walk(self):
         files = list()
@@ -39,17 +48,22 @@ class Tree:
         for dirpath, dirnames, filenames in os.walk(self.rootpath, onerror = action.report_warning):
             for file in filenames:
                 abspath = os.path.join(dirpath, file)
-                try:
-                    name = file
-                    path = os.path.relpath(dirpath, self.rootpath)
-                    size = os.path.getsize(abspath)
-                    time = int(os.path.getmtime(abspath))
-                except OSError as error:
-                    action.report_warning(error)
-                    pass
+                relpath = os.path.relpath(abspath, self.rootpath)
+                for pattern in self.blacklist:
+                    if fnmatch.fnmatch(relpath, pattern):
+                        break
                 else:
-                    action.update_progress()
-                    files.append(File(name = name, path = path, size = size, time = time))
+                    try:
+                        name = file
+                        path = os.path.relpath(dirpath, self.rootpath)
+                        size = os.path.getsize(abspath)
+                        time = int(os.path.getmtime(abspath))
+                    except OSError as error:
+                        action.report_warning(error)
+                        pass
+                    else:
+                        action.update_progress()
+                        files.append(File(name = name, path = path, size = size, time = time))
 
         action.finish_progress()
         return files
@@ -63,9 +77,6 @@ class Tree:
                 action.update_progress()
                 yield future.result()
             action.finish_progress()
-
-    def _io_error(self, error, action = None):
-        print("_io_error:", action, error, file = sys.stderr)
 
     def _file_checksum(self, file, action = None):
         sha1 = hashlib.sha1()
@@ -174,6 +185,7 @@ class Index:
         self.connection.commit()
 
     def update(self):
+        self.execute("DROP TABLE IF EXISTS {old_filetable}")
         self.execute("ALTER TABLE {filetable} RENAME TO {old_filetable}")
         self.create_filetable(checksum = False)
 
@@ -402,13 +414,13 @@ i.update()
 #i.update()
 
 c = IndexComparator(a, b)
-for f in c.queries(IndexQuery.PATH_CONFLICT):
-    for s in f:
-        print(dict(s))
+#for f in c.queries(IndexQuery.PATH_CONFLICT):
+#    for s in f:
+#        print(dict(s))
 
 
-#for f in c.query(IndexQuery.PATH_CONFLICT):
-#    print(dict(f))
+for f in c.query(IndexQuery.SHA1_CONFLICT):
+    print(dict(f))
 
 ##print(IndexQuery._IndexQuery__COLUMNS)
 #for f in c.query(IndexQuery.COMPLETE_DIFF):
