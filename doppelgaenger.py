@@ -217,13 +217,15 @@ class IndexQuery:
         "FileTable": Index.FILETABLE,
         "TreeTable": Index.TREETABLE,
         "FileResultA": """
-            join_path(a.path, a.name) as a_path, a.size as a_size, a.time as a_time, a.sha1 as a_sha1
+            join_path(a.path, a.name) as a_path, a.size as a_size, 
+            a.time as a_time, a.sha1 as a_sha1
         """,
         "TreeResultA": """
             a.folder as a_folder, a.sha1 as a_sha1
         """,
         "FileResultB": """
-            join_path(b.path, b.name) as b_path, b.size as b_size, b.time as b_time, b.sha1 as b_sha1
+            join_path(b.path, b.name) as b_path, b.size as b_size,
+            b.time as b_time, b.sha1 as b_sha1
         """,
         "TreeResultB": """
             b.folder as b_folder, b.sha1 as b_sha1
@@ -277,7 +279,9 @@ class IndexQuery:
     SHA1_CONFLICT = """
         SELECT {FileResultA}, {FileResultB}
         FROM a.{FileTable} as a, b.{FileTable} as b
-        WHERE join_path(a.path, a.name) = join_path(b.path, b.name) AND a.sha1 != b.sha1
+        WHERE 
+            join_path(a.path, a.name) = join_path(b.path, b.name) 
+            AND a.sha1 != b.sha1
     """
 
     PATH_CONFLICT = [
@@ -298,12 +302,17 @@ class IndexQuery:
         FROM a.{FileTable} as a INNER JOIN b.{FileTable} as b USING (sha1)
         WHERE
             (join_path(a.path, a.name) NOT IN (
-                SELECT join_path(path, name) FROM b.{FileTable} as b WHERE b.sha1 = a.sha1
+                SELECT join_path(path, name) FROM b.{FileTable} as b
+                WHERE b.sha1 = a.sha1
             )
             OR join_path(b.path, b.name) NOT IN (
-                SELECT join_path(path, name) FROM a.{FileTable} as a WHERE a.sha1 = b.sha1
+                SELECT join_path(path, name) FROM a.{FileTable} as a
+                WHERE a.sha1 = b.sha1
             ))
-            AND NOT EXISTS (SELECT * FROM ConflictingFolders WHERE a_folder = a.path AND b_folder = b.path)
+            AND NOT EXISTS (
+                SELECT * FROM ConflictingFolders 
+                WHERE a_folder = a.path AND b_folder = b.path
+            )
 
      """,
      """SELECT a_folder, b_folder, sha1 as a_sha1, sha1 as b_sha1 FROM ConflictingFolders""",
